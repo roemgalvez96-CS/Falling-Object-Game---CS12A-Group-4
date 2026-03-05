@@ -12,7 +12,9 @@ pygame.mixer.init()
 WINDOW_WIDTH  = 500
 WINDOW_HEIGHT = 900
 FPS           = 120
-
+#==========================================#
+#THIS IS THE COLORS FOR OBJECTS#
+#==========================================#
 WHITE      = (255, 255, 255)
 BLACK      = (0,   0,   0)
 RED        = (255, 0,   0)
@@ -28,15 +30,19 @@ CYAN_DIM   = (0,   120, 160)
 GREY_LIGHT = (180, 180, 200)
 ORANGE     = (255, 160, 0)
 
+#==========================================#
+#THIS IS THE SPEED ALGORITHMS
+#==========================================#
 INITIAL_FALL_SPEED = 3
 SPEED_INCREASE     = 1.5
 SPEED_THRESHOLD    = 20
 SCORE_FILE         = 'warmup.txt'
+#==========================================#
 
 BASE_DIR = os.path.dirname(__file__)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
+# ==============================================================================
 # SECTION 1 — GAME MUSIC
 # ══════════════════════════════════════════════════════════════════════════════
 # Loads all audio assets and starts the background music on launch.
@@ -457,4 +463,5 @@ if __name__ == "__main__":
                 if outcome == 'restart':
                     continue   # play again immediately
                 else:          # 'menu'
+
                     break      # back to welcome screen
