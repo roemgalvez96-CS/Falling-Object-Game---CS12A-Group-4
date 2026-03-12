@@ -2,13 +2,14 @@ import pygame
 import random
 import sys
 import os
+from PIL import Image
 
 # ── SETUP ──────────────────────────────────────────────────────────────────────
 pygame.init()
 pygame.mixer.init()
 
 WINDOW_WIDTH  = 500
-WINDOW_HEIGHT = 900
+WINDOW_HEIGHT = 800
 FPS           = 120
 
 WHITE      = (255, 255, 255)
@@ -27,7 +28,7 @@ GREY_LIGHT = (180, 180, 200)
 ORANGE     = (255, 160, 0)
 
 INITIAL_FALL_SPEED = 3
-SPEED_INCREASE     = 1.5
+SPEED_INCREASE     = 0.7
 SPEED_THRESHOLD    = 20
 SCORE_FILE         = 'highscores.txt'
 
@@ -35,33 +36,63 @@ BASE_DIR = os.path.dirname(__file__)
 
 
 # ==============================================================================
-# SECTION 1 — GAME MUSIC
+# SECTION 1 — GAME MUSIC & ASSETS
 # ==============================================================================
-# Loads all audio assets and starts the background music on launch.
-# bgm        – looping background track for the main menu
-# points_catch – short sound played when a good apple is caught
-# playing    – in-game background music while a round is active
-# gameover   – looping audio shown on the game-over screen
-# level      – jingle that fires each time the difficulty level increases
+bgm          = "scripts/falling_game_bgm.wav"
+points_catch = "scripts/catch.wav"
+playing      = "scripts/catch_music.wav"
+gameover     = "scripts/gameover_loop.wav"
+level        = "scripts/level_up.wav"
+ouch         = "scripts/oof.wav"
+idle         = "scripts/idle.png"
+apples       = "scripts/apple.png"
+worms        = "scripts/worm.png"
+walk_right   = "scripts/going_right.gif"
+walk_left    = "scripts/going_left.gif"
+BG           = "scripts/tree_BG.png"
+
+BGS    = pygame.mixer.Sound(bgm)
+PC     = pygame.mixer.Sound(points_catch)
+PlayBG = pygame.mixer.Sound(playing)
+G_O    = pygame.mixer.Sound(gameover)
+LVL    = pygame.mixer.Sound(level)
+OW     = pygame.mixer.Sound(ouch)
+
+BGS = pygame.mixer.Sound(bgm)
+PC = pygame.mixer.Sound(points_catch)
+PlayBG = pygame.mixer.Sound(playing)
+G_O = pygame.mixer.Sound(gameover)
+LVL = pygame.mixer.Sound(level)
+OW = pygame.mixer.Sound(ouch)
+
+BGS.play(-1)
+
+# ── GIF LOADER ────────────────────────────────────────────────────────────────
+PLAYER_SIZE = (50, 70)
 
 
-bgm          = pygame.mixer.Sound("falling_game_bgm.wav")
-points_catch = pygame.mixer.Sound("catch.wav")
-playing      = pygame.mixer.Sound("catch_music.wav")
-gameover     = pygame.mixer.Sound("gameover_loop.wav")
-level        = pygame.mixer.Sound("level_up.wav")
-ouch         = pygame.mixer.Sound("oof.wav")
-
-bgm.play(-1)   # start menu music immediately
+def load_gif_frames(path, size=None):
+    """Extract every frame from an animated GIF as a list of pygame Surfaces."""
+    gif = Image.open(path)
+    frames = []
+    try:
+        while True:
+            frame = gif.convert("RGBA")
+            surface = pygame.image.fromstring(
+                frame.tobytes(), frame.size, "RGBA"
+            ).convert_alpha()
+            if size:
+                surface = pygame.transform.scale(surface, size)
+            frames.append(surface)
+            gif.seek(gif.tell() + 1)
+    except EOFError:
+        pass
+    return frames
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 2 — MAIN MENU
 # ══════════════════════════════════════════════════════════════════════════════
-# Helpers for reading / writing the personal-best score file, the reusable
-# Button widget, and the WelcomeScreen class that drives the title screen and
-# the credits screen.
-# ──────────────────────────────────────────────────────────────────────────────
 
 def get_last_score():
     try:
@@ -82,13 +113,13 @@ def save_score(score):
 class Button:
     def __init__(self, x, y, w, h, label,
                  base_color=CYAN_DIM, hover_color=CYAN, text_color=WHITE):
-        self.rect        = pygame.Rect(x, y, w, h)
-        self.label       = label
-        self.base_color  = base_color
+        self.rect = pygame.Rect(x, y, w, h)
+        self.label = label
+        self.base_color = base_color
         self.hover_color = hover_color
-        self.text_color  = text_color
-        self.hovered     = False
-        self.flash       = 0
+        self.text_color = text_color
+        self.hovered = False
+        self.flash = 0
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -103,12 +134,12 @@ class Button:
             self.flash -= 1
 
     def draw(self, surface, font):
-        fill       = WHITE if self.flash > 0 else (self.hover_color if self.hovered else self.base_color)
+        fill = WHITE if self.flash > 0 else (self.hover_color if self.hovered else self.base_color)
         border_col = WHITE if (self.hovered or self.flash) else GREY_LIGHT
-        txt_col    = BLACK if (self.hovered or self.flash) else self.text_color
+        txt_col = BLACK if (self.hovered or self.flash) else self.text_color
         pygame.draw.rect(surface, (0, 0, 0), self.rect.move(4, 4), border_radius=6)
-        pygame.draw.rect(surface, fill,       self.rect,            border_radius=6)
-        pygame.draw.rect(surface, border_col, self.rect, width=2,   border_radius=6)
+        pygame.draw.rect(surface, fill, self.rect, border_radius=6)
+        pygame.draw.rect(surface, border_col, self.rect, width=2, border_radius=6)
         ts = font.render(self.label, True, txt_col)
         surface.blit(ts, (self.rect.centerx - ts.get_width() // 2,
                           self.rect.centery - ts.get_height() // 2))
@@ -117,31 +148,32 @@ class Button:
 class WelcomeScreen:
     def __init__(self, screen, clock):
         self.screen = screen
-        self.clock  = clock
-        self.state  = 'menu'
+        self.clock = clock
+        self.state = 'menu'
         self.font_title = pygame.font.Font(None, 97)
-        self.font_sub   = pygame.font.Font(None, 32)
-        self.font_sub2  = pygame.font.Font(None, 28)
-        self.font_btn   = pygame.font.Font(None, 38)
+        self.font_sub = pygame.font.Font(None, 32)
+        self.font_sub2 = pygame.font.Font(None, 28)
+        self.font_btn = pygame.font.Font(None, 38)
         self.font_small = pygame.font.Font(None, 28)
         bw, bh = 240, 58
         cx = WINDOW_WIDTH // 2 - bw // 2
-        self.btn_start   = Button(cx, 510, bw, bh, "START GAME",
-                                  base_color=(0, 130, 60), hover_color=(0, 200, 80))
-        self.btn_credits = Button(cx, 590, bw, bh, "CREDITS",
-                                  base_color=CYAN_DIM, hover_color=CYAN)
-        self.btn_quit    = Button(cx, 670, bw, bh, "QUIT",
-                                  base_color=(120, 20, 20), hover_color=(200, 40, 40))
-        self.btn_back    = Button(WINDOW_WIDTH // 2 - 100, 780, 200, 50, "BACK",
-                                  base_color=CYAN_DIM, hover_color=CYAN)
+        self.btn_start = Button(cx, 510, bw, bh, "START GAME",
+                                base_color=(0, 130, 60), hover_color=(0, 200, 80))
+        self.btn_quit = Button(cx, 590, bw, bh, "QUIT",
+                               base_color=(120, 20, 20), hover_color=(200, 40, 40))
+        self.btn_back = Button(WINDOW_WIDTH // 2 - 100, 780, 200, 50, "BACK",
+                               base_color=CYAN_DIM, hover_color=CYAN)
         self.last_score = get_last_score()
+        self.bg = pygame.transform.scale(
+            pygame.image.load("scripts/tree_BG.png").convert(), (WINDOW_WIDTH, WINDOW_HEIGHT)
+        )
 
     def _draw_title(self):
         title = self.font_title.render("A FALL", True, GOLD)
         self.screen.blit(title, (WINDOW_WIDTH // 2 - title.get_width() // 2, 140))
-        sub  = self.font_sub2.render("CATCH ALL THE RED APPLES", True, GREY_LIGHT)
+        sub = self.font_sub2.render("CATCH ALL THE RED APPLES", True, GREY_LIGHT)
         sub2 = self.font_sub2.render("AND AVOID THE ROTTEN ONE", True, GREY_LIGHT)
-        self.screen.blit(sub,  (WINDOW_WIDTH // 2 - sub.get_width()  // 2, 250))
+        self.screen.blit(sub, (WINDOW_WIDTH // 2 - sub.get_width() // 2, 250))
         self.screen.blit(sub2, (WINDOW_WIDTH // 2 - sub2.get_width() // 2, 280))
 
         if self.last_score is not None:
@@ -159,51 +191,36 @@ class WelcomeScreen:
             hint = self.font_small.render("No score yet  --  play to set a record!", True, GREY_LIGHT)
             self.screen.blit(hint, (WINDOW_WIDTH // 2 - hint.get_width() // 2, 318))
 
-    def _draw_credits(self):
-        lines = [
-            ("A FALL",                    self.font_title, GOLD,       160),
-            ("A Pygame Mini-Game",        self.font_sub,   GREY_LIGHT, 265),
-            ("Game Design & Code",        self.font_sub,   CYAN,       360),
-            ("Basta namin",               self.font_sub,   WHITE,      400),
-            ("Built with",                self.font_sub,   GREY_LIGHT, 470),
-            ("Python  &  Pygame",         self.font_sub,   WHITE,      510),
-            ("Controls: A / D to move",   self.font_small, GREY_LIGHT, 590),
-            ("R = Restart  |  Q = Quit",  self.font_small, GREY_LIGHT, 620),
-        ]
-        for text, font, color, y in lines:
-            s = font.render(text, True, color)
-            self.screen.blit(s, (WINDOW_WIDTH // 2 - s.get_width() // 2, y))
-
     def run(self):
         result = None
         while result is None:
             mouse_pos = pygame.mouse.get_pos()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    pygame.quit(); sys.exit()
+                    pygame.quit();
+                    sys.exit()
                 if self.state == 'menu':
                     if self.btn_start.handle_event(event):
-                        bgm.stop()
-                        playing.play(-1)
+                        BGS.stop()
+                        PlayBG.play(-1)
                         result = 'start'
-                    if self.btn_credits.handle_event(event): self.state = 'credits'
-                    if self.btn_quit.handle_event(event):    pygame.quit(); sys.exit()
+                    if self.btn_quit.handle_event(event):
+                        pygame.quit();
+                        sys.exit()
                 elif self.state == 'credits':
-                    if self.btn_back.handle_event(event):    self.state = 'menu'
+                    if self.btn_back.handle_event(event):
+                        self.state = 'menu'
             if self.state == 'menu':
                 self.btn_start.update(mouse_pos)
-                self.btn_credits.update(mouse_pos)
                 self.btn_quit.update(mouse_pos)
             else:
                 self.btn_back.update(mouse_pos)
-            self.screen.fill(BG_DARK)
+            self.screen.blit(self.bg, (0, 0))
             if self.state == 'menu':
                 self._draw_title()
                 self.btn_start.draw(self.screen, self.font_btn)
-                self.btn_credits.draw(self.screen, self.font_btn)
                 self.btn_quit.draw(self.screen, self.font_btn)
             else:
-                self._draw_credits()
                 self.btn_back.draw(self.screen, self.font_btn)
             pygame.display.flip()
             self.clock.tick(FPS)
@@ -213,46 +230,93 @@ class WelcomeScreen:
 # ══════════════════════════════════════════════════════════════════════════════
 # SECTION 3 — GAME ALGORITHM
 # ══════════════════════════════════════════════════════════════════════════════
-# Contains the core gameplay logic: the Player basket, the FallingObject
-# (apples / bombs), and the Game controller that ties spawning, collision,
-# difficulty scaling, drawing, and the game-loop together.
-# ──────────────────────────────────────────────────────────────────────────────
 
 class Player:
     def __init__(self):
-        self.width  = 70
-        self.height = 70
-        self.x      = WINDOW_WIDTH // 2 - self.width // 2
-        self.y      = WINDOW_HEIGHT - self.height - 10
-        self.speed  = 7
+        self.speed = 5
 
-        #THE PLAYER ITSELF
-        self.image = pygame.image.load("Sprite.png").convert_alpha()
-        self.image = pygame.transform.scale(self.image, (self.width, self.height))
+        # ── Hitbox / position ──
+        self.rect = pygame.Rect(
+            WINDOW_WIDTH // 2 - PLAYER_SIZE[0] // 2, WINDOW_HEIGHT - 70, PLAYER_SIZE[0], PLAYER_SIZE[1]
+        )
+
+        # ── Load images ──
+        # Idle: plain PNG scaled to player size
+        self.idle_image = pygame.transform.scale(
+            pygame.image.load(idle).convert_alpha(), PLAYER_SIZE
+        )
+
+        # Walk animations: extracted from animated GIFs, scaled to player size
+        self.walk_frames_right = load_gif_frames(walk_right, size=PLAYER_SIZE)
+        self.walk_frames_left = load_gif_frames(walk_left, size=PLAYER_SIZE)
+
+        # ── Animation state ──
+        self.current_image = self.idle_image
+        self.frame_index = 0
+        self.frame_timer = 0
+        self.FRAME_SPEED = 8  # ticks per frame (lower = faster)
 
     def move(self, keys):
-        if keys[pygame.K_a] and self.x > 0:
-            self.x -= self.speed
-        if keys[pygame.K_d] and self.x < WINDOW_WIDTH - self.width:
-            self.x += self.speed
+        moving_right1 = keys[pygame.K_RIGHT] and self.rect.right < WINDOW_WIDTH
+        moving_right2 = keys[pygame.K_d] and self.rect.right < WINDOW_WIDTH
+        moving_left1 = keys[pygame.K_LEFT] and self.rect.left > 0
+        moving_left2 = keys[pygame.K_a] and self.rect.left > 0
+
+
+
+        if moving_right1:
+            self.rect.x += self.speed
+            self.frame_timer += 1
+            if self.frame_timer >= self.FRAME_SPEED:
+                self.frame_timer = 0
+                self.frame_index = (self.frame_index + 1) % len(self.walk_frames_right)
+            self.current_image = self.walk_frames_right[self.frame_index]
+
+        elif moving_left1:
+            self.rect.x -= self.speed
+            self.frame_timer += 1
+            if self.frame_timer >= self.FRAME_SPEED:
+                self.frame_timer = 0
+                self.frame_index = (self.frame_index + 1) % len(self.walk_frames_left)
+            self.current_image = self.walk_frames_left[self.frame_index]
+
+        elif moving_right2:
+            self.rect.x += self.speed
+            self.frame_timer += 1
+            if self.frame_timer >= self.FRAME_SPEED:
+                self.frame_timer = 0
+                self.frame_index = (self.frame_index + 1) % len(self.walk_frames_right)
+            self.current_image = self.walk_frames_right[self.frame_index]
+
+        elif moving_left2:
+            self.rect.x -= self.speed
+            self.frame_timer += 1
+            if self.frame_timer >= self.FRAME_SPEED:
+                self.frame_timer = 0
+                self.frame_index = (self.frame_index + 1) % len(self.walk_frames_left)
+            self.current_image = self.walk_frames_left[self.frame_index]
+
+        else:
+            self.frame_index = 0
+            self.frame_timer = 0
+            self.current_image = self.idle_image
 
     def draw(self, screen):
-        screen.blit(self.image, (self.x, self.y))  # use self.x, self.y not hardcoded
+        screen.blit(self.current_image, self.rect)
 
 
 class FallingObject:
     def __init__(self, obj_type, fall_speed):
-        self.width      = 60
-        self.height     = 60
-        self.x          = random.randint(0, WINDOW_WIDTH - self.width)
-        self.y          = -self.height
+        self.width = 60
+        self.height = 60
+        self.x = random.randint(0, WINDOW_WIDTH - self.width)
+        self.y = -self.height
         self.fall_speed = fall_speed
-        self.type       = obj_type
+        self.type = obj_type
 
-        apple_img = pygame.image.load("apple.png").convert_alpha()
-        worm_img = pygame.image.load("worm.png").convert_alpha()
+        apple_img = pygame.image.load(apples).convert_alpha()
+        worm_img = pygame.image.load(worms).convert_alpha()
 
-        #THIS ARE OBJECT IMAGES
         if self.type == 'good':
             self.image = pygame.transform.scale(apple_img, (self.width, self.height))
         else:
@@ -262,55 +326,54 @@ class FallingObject:
         self.y += self.fall_speed
 
     def draw(self, screen):
-        screen.blit(self.image, (self.x, self.y))  #DRAWING IMAGE
+        screen.blit(self.image, (self.x, self.y))
 
     def is_off_screen(self):
         return self.y > WINDOW_HEIGHT
 
     def check_collision(self, player):
-        return (self.x < player.x + player.width  and
-                self.x + self.width  > player.x   and
-                self.y < player.y + player.height  and
-                self.y + self.height > player.y)
+        #Fixed: use player.rect instead of player.x/y/width/height
+        obj_rect = pygame.Rect(self.x, self.y, self.width, self.height)
+        return obj_rect.colliderect(player.rect)
 
 
 class Game:
     def __init__(self):
-        self.screen     = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-        pygame.display.set_caption("Game")
-        self.clock      = pygame.time.Clock()
-        self.font       = pygame.font.Font(None, 36)
+        self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+        pygame.display.set_caption("A Fall")
+        self.clock = pygame.time.Clock()
+        self.font = pygame.font.Font(None, 36)
         self.large_font = pygame.font.Font(None, 72)
         self.small_font = pygame.font.Font(None, 28)
-        self.font_btn   = pygame.font.Font(None, 38)
+        self.font_btn = pygame.font.Font(None, 38)
 
-        # Game-over buttons
         bw, bh = 240, 58
         cx = WINDOW_WIDTH // 2 - bw // 2
         self.btn_play_again = Button(cx, 490, bw, bh, "PLAY AGAIN",
                                      base_color=(0, 130, 60), hover_color=(0, 200, 80))
-        self.btn_main_menu  = Button(cx, 570, bw, bh, "BACK TO MENU",
-                                     base_color=CYAN_DIM, hover_color=CYAN)
+        self.btn_main_menu = Button(cx, 570, bw, bh, "BACK TO MENU",
+                                    base_color=CYAN_DIM, hover_color=CYAN)
         self.reset_game()
 
     def reset_game(self):
-        self.player                = Player()
-        self.falling_objects       = []
-        self.score                 = 0
-        self.lives                 = 3
-        self.fall_speed            = INITIAL_FALL_SPEED
-        self.spawn_timer           = 0
-        self.spawn_delay           = 60
-        self.game_over             = False
-        self.difficulty_level      = 0
+        self.player = Player()
+        self.falling_objects = []
+        self.score = 0
+        self.lives = 3
+        self.fall_speed = INITIAL_FALL_SPEED
+        self.spawn_timer = 0
+        self.spawn_delay = 60
+        self.game_over = False
+        self.difficulty_level = 0
         self.last_difficulty_score = 0
-        self.personal_best         = get_last_score()
-        self.new_record            = False
-        self.score_saved           = False
+        self.personal_best = get_last_score()
+        self.new_record = False
+        self.score_saved = False
+        self.gameover_music_started = False
 
     def spawn_object(self):
         bomb_chance = min(0.30 + (self.difficulty_level * 0.05), 0.60)
-        obj_type    = 'bomb' if random.random() < bomb_chance else 'good'
+        obj_type = 'bomb' if random.random() < bomb_chance else 'good'
         self.falling_objects.append(FallingObject(obj_type, self.fall_speed))
 
     def _try_save_score(self):
@@ -326,57 +389,62 @@ class Game:
 
     def update(self):
         if self.game_over:
-
-        #IF THE PLAYER DIED THIS CODE IS THE MUSIC FOR GAMEOVER
-            playing.stop()
-            gameover.play(-0)
-            gameover.set_volume(0.1)
+            PlayBG.stop()
+            if not self.gameover_music_started:
+                G_O.play(0)
+                G_O.set_volume(1)
+                self.gameover_music_started = True
+            if not pygame.mixer.get_busy():
+                BGS.play()
+                BGS.set_volume(0.4)
             return
 
-        #THIS ARE THE KEYS TO PRESS and THE ALGORITHM IF THE PLAYER CATCHES THE GOOD OBJ OR BAD OBJ
         keys = pygame.key.get_pressed()
-        self.player.move(keys)
+        self.player.move(keys)  # Fixed: no tick argument needed
+
         self.spawn_timer += 1
         if self.spawn_timer >= self.spawn_delay:
             self.spawn_object()
             self.spawn_timer = 0
+
         for obj in self.falling_objects[:]:
             obj.fall()
             if obj.check_collision(self.player):
                 if obj.type == 'good':
                     self.score += 1
-                    points_catch.play()
-                    points_catch.set_volume(0.8)
+                    PC.play()
+                    PC.set_volume(0.8)
                     if self.personal_best is not None and self.score > self.personal_best:
                         self.new_record = True
                 else:
                     self.lives -= 1
-                    ouch.play()
-                    ouch.set_volume(1.6)
+                    OW.play()
+                    OW.set_volume(1.6)
                     if self.lives <= 0:
                         self.game_over = True
                         self._try_save_score()
                 self.falling_objects.remove(obj)
             elif obj.is_off_screen():
                 self.falling_objects.remove(obj)
+
         if self.score >= self.last_difficulty_score + SPEED_THRESHOLD and self.score > 0:
-            self.difficulty_level      += 1
-            level.play()
-            self.last_difficulty_score  = (self.score // SPEED_THRESHOLD) * SPEED_THRESHOLD
-            self.fall_speed            += SPEED_INCREASE
-            self.spawn_delay            = max(30, self.spawn_delay - 5)
+            self.difficulty_level += 1
+            LVL.play()
+            self.last_difficulty_score = (self.score // SPEED_THRESHOLD) * SPEED_THRESHOLD
+            self.fall_speed += SPEED_INCREASE
+            self.spawn_delay = max(30, self.spawn_delay - 5)
             for obj in self.falling_objects:
                 obj.fall_speed = self.fall_speed
 
-    def draw(self): #SCREEN, THIS IS SCREEN PRE TO PROJECT SCORES, LIVES, DIFFICULTY LEVEL
+    def draw(self):
         self.screen.fill("gray")
         self.player.draw(self.screen)
         for obj in self.falling_objects:
             obj.draw(self.screen)
 
-        self.screen.blit(self.font.render(f"Score: {self.score}",              True, BLACK), (10, 10))
-        self.screen.blit(self.font.render(f"Lives: {self.lives}",              True, BLACK), (10, 50))
-        self.screen.blit(self.font.render(f"Level: {self.difficulty_level+1}", True, BLACK), (10, 90))
+        self.screen.blit(self.font.render(f"Score: {self.score}", True, BLACK), (10, 10))
+        self.screen.blit(self.font.render(f"Lives: {self.lives}", True, BLACK), (120, 10))
+        self.screen.blit(self.font.render(f"Level: {self.difficulty_level + 1}", True, BLACK), (220, 10))
 
         if self.personal_best is not None:
             if self.new_record:
@@ -385,17 +453,12 @@ class Game:
                 pb_label, pb_color = f"Best: {self.personal_best}", (150, 150, 150)
             pb_surf = self.small_font.render(pb_label, True, pb_color)
             self.screen.blit(pb_surf, (WINDOW_WIDTH - pb_surf.get_width() - 10, 10))
-            if not self.new_record:
-                gap = self.personal_best - self.score
-                if gap > 0:
-                    gap_surf = self.small_font.render(f"({gap} to beat)", True, (180, 180, 180))
-                    self.screen.blit(gap_surf, (WINDOW_WIDTH - gap_surf.get_width() - 10, 36))
 
         if self.difficulty_level > 0 and self.score - self.last_difficulty_score < 5:
             lv = self.font.render(f"LEVEL {self.difficulty_level + 1}!", True, RED)
             self.screen.blit(lv, (WINDOW_WIDTH // 2 - lv.get_width() // 2, 10))
 
-        if self.game_over: #THIS IS AN OVERLAY FOR GAMEOVER
+        if self.game_over:
             overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
             overlay.set_alpha(128)
             overlay.fill(BLACK)
@@ -421,27 +484,30 @@ class Game:
 
         pygame.display.flip()
 
-    #EVENT HANDLER, ETO YUNG FOR KEYS TO PRESS
     def run(self):
         while True:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    pygame.quit(); sys.exit()
+                    pygame.quit();
+                    sys.exit()
                 if event.type == pygame.KEYDOWN and self.game_over:
                     if event.key == pygame.K_r:
                         return 'restart'
                     elif event.key == pygame.K_q:
-                        pygame.quit(); sys.exit()
+                        pygame.quit();
+                        sys.exit()
                 if self.game_over:
                     if self.btn_play_again.handle_event(event):
-                        gameover.stop()
-                        bgm.stop()
-                        playing.play(-1)
+                        G_O.stop()
+                        BGS.stop()
+                        PlayBG.play(-1)
                         return 'restart'
                     if self.btn_main_menu.handle_event(event):
-                        playing.stop()
-                        gameover.stop()
-                        bgm.play(-1)
+                        PlayBG.stop()
+                        G_O.stop()
+                        BGS.stop()
+                        BGS.play(-1)
+                        BGS.set_volume(1)
                         return 'menu'
             self.update()
             self.draw()
@@ -449,21 +515,20 @@ class Game:
 
 
 # ── ENTRY POINT ────────────────────────────────────────────────────────────────
-#TO START THE GAME
 if __name__ == "__main__":
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-    pygame.display.set_caption("Space & Rocks")
+    pygame.display.set_caption("A Fall")
     clock = pygame.time.Clock()
 
     while True:
         welcome = WelcomeScreen(screen, clock)
-        result  = welcome.run()
+        result = welcome.run()
 
         if result == 'start':
             while True:
-                game    = Game()
+                game = Game()
                 outcome = game.run()
                 if outcome == 'restart':
-                    continue   # play again immediately
-                else:          # 'menu'
-                    break      # back to welcome screen
+                    continue
+                else:
+                    break
