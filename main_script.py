@@ -1,7 +1,6 @@
 import pygame
 import random
 import sys
-import os
 from PIL import Image
 
 # ── SETUP ──────────────────────────────────────────────────────────────────────
@@ -21,6 +20,7 @@ YELLOW     = (255, 255, 0)
 BG_DARK    = (8,   8,   24)
 STAR_WHITE = (220, 220, 255)
 GOLD       = (255, 215, 0)
+BROWN   = (139, 90, 43)
 GOLD_DIM   = (180, 140, 0)
 CYAN       = (0,   220, 255)
 CYAN_DIM   = (0,   120, 160)
@@ -32,12 +32,10 @@ SPEED_INCREASE     = 0.7
 SPEED_THRESHOLD    = 20
 SCORE_FILE         = 'highscores.txt'
 
-BASE_DIR = os.path.dirname(__file__)
 
-
-# ==============================================================================
-# SECTION 1 — GAME MUSIC & ASSETS
-# ==============================================================================
+# ==========================================================
+# GAME MUSIC & ASSETS
+# =========================================================
 bgm          = "scripts/falling_game_bgm.wav"
 points_catch = "scripts/catch.wav"
 playing      = "scripts/catch_music.wav"
@@ -58,12 +56,6 @@ G_O    = pygame.mixer.Sound(gameover)
 LVL    = pygame.mixer.Sound(level)
 OW     = pygame.mixer.Sound(ouch)
 
-BGS = pygame.mixer.Sound(bgm)
-PC = pygame.mixer.Sound(points_catch)
-PlayBG = pygame.mixer.Sound(playing)
-G_O = pygame.mixer.Sound(gameover)
-LVL = pygame.mixer.Sound(level)
-OW = pygame.mixer.Sound(ouch)
 
 BGS.play(-1)
 
@@ -72,7 +64,6 @@ PLAYER_SIZE = (50, 70)
 
 
 def load_gif_frames(path, size=None):
-    """Extract every frame from an animated GIF as a list of pygame Surfaces."""
     gif = Image.open(path)
     frames = []
     try:
@@ -90,11 +81,11 @@ def load_gif_frames(path, size=None):
     return frames
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# SECTION 2 — MAIN MENU
-# ══════════════════════════════════════════════════════════════════════════════
+# ============================================================
+# MAIN MENU PART
+# =====================================================
 
-def get_last_score():
+def get_last_score(): #This is where the score displayed from .txt file
     try:
         with open(SCORE_FILE, 'r') as f:
             lines = [ln.strip() for ln in f.readlines() if ln.strip()]
@@ -137,9 +128,11 @@ class Button:
         fill = WHITE if self.flash > 0 else (self.hover_color if self.hovered else self.base_color)
         border_col = WHITE if (self.hovered or self.flash) else GREY_LIGHT
         txt_col = BLACK if (self.hovered or self.flash) else self.text_color
+
         pygame.draw.rect(surface, (0, 0, 0), self.rect.move(4, 4), border_radius=6)
         pygame.draw.rect(surface, fill, self.rect, border_radius=6)
         pygame.draw.rect(surface, border_col, self.rect, width=2, border_radius=6)
+
         ts = font.render(self.label, True, txt_col)
         surface.blit(ts, (self.rect.centerx - ts.get_width() // 2,
                           self.rect.centery - ts.get_height() // 2))
@@ -161,8 +154,6 @@ class WelcomeScreen:
                                 base_color=(0, 130, 60), hover_color=(0, 200, 80))
         self.btn_quit = Button(cx, 590, bw, bh, "QUIT",
                                base_color=(120, 20, 20), hover_color=(200, 40, 40))
-        self.btn_back = Button(WINDOW_WIDTH // 2 - 100, 780, 200, 50, "BACK",
-                               base_color=CYAN_DIM, hover_color=CYAN)
         self.last_score = get_last_score()
         self.bg = pygame.transform.scale(
             pygame.image.load("scripts/tree_BG.png").convert(), (WINDOW_WIDTH, WINDOW_HEIGHT)
@@ -171,22 +162,21 @@ class WelcomeScreen:
     def _draw_title(self):
         title = self.font_title.render("A FALL", True, GOLD)
         self.screen.blit(title, (WINDOW_WIDTH // 2 - title.get_width() // 2, 140))
-        sub = self.font_sub2.render("CATCH ALL THE RED APPLES", True, GREY_LIGHT)
-        sub2 = self.font_sub2.render("AND AVOID THE ROTTEN ONE", True, GREY_LIGHT)
+        sub = self.font_sub2.render("CATCH ALL THE RED APPLES", True, WHITE)
+        sub2 = self.font_sub2.render("AND AVOID THE ROTTEN ONE", True, WHITE)
         self.screen.blit(sub, (WINDOW_WIDTH // 2 - sub.get_width() // 2, 250))
         self.screen.blit(sub2, (WINDOW_WIDTH // 2 - sub2.get_width() // 2, 280))
 
         if self.last_score is not None:
             panel_w, panel_h = 200, 72
             panel_x = WINDOW_WIDTH // 2 - panel_w // 2
-            panel_surf = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
-            panel_surf.fill((255, 215, 0, 18))
-            self.screen.blit(panel_surf, (panel_x, 330))
-            pygame.draw.rect(self.screen, GOLD_DIM, (panel_x, 330, panel_w, panel_h), 1, border_radius=6)
-            label = self.font_small.render("PERSONAL BEST", True, GOLD_DIM)
+            pygame.draw.rect(self.screen, (101, 67, 33), (panel_x, 330, panel_w, panel_h), 0, border_radius=6)
+            pygame.draw.rect(self.screen, GOLD_DIM, (panel_x, 330, panel_w, panel_h), 2, border_radius=6)
+            label = self.font_small.render("PERSONAL BEST", True, WHITE)
             value = self.font_sub.render(str(self.last_score), True, GOLD)
             self.screen.blit(label, (WINDOW_WIDTH // 2 - label.get_width() // 2, 335))
             self.screen.blit(value, (WINDOW_WIDTH // 2 - value.get_width() // 2, 365))
+
         else:
             hint = self.font_small.render("No score yet  --  play to set a record!", True, GREY_LIGHT)
             self.screen.blit(hint, (WINDOW_WIDTH // 2 - hint.get_width() // 2, 318))
@@ -340,12 +330,15 @@ class FallingObject:
 class Game:
     def __init__(self):
         self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-        pygame.display.set_caption("A Fall")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 36)
         self.large_font = pygame.font.Font(None, 72)
         self.small_font = pygame.font.Font(None, 28)
         self.font_btn = pygame.font.Font(None, 38)
+
+        # Load heart image
+        self.heart_img = pygame.image.load("scripts/heart_life.png").convert_alpha()
+        self.heart_img = pygame.transform.scale(self.heart_img, (24, 24))
 
         bw, bh = 240, 58
         cx = WINDOW_WIDTH // 2 - bw // 2
@@ -442,21 +435,45 @@ class Game:
         for obj in self.falling_objects:
             obj.draw(self.screen)
 
-        self.screen.blit(self.font.render(f"Score: {self.score}", True, BLACK), (10, 10))
-        self.screen.blit(self.font.render(f"Lives: {self.lives}", True, BLACK), (120, 10))
-        self.screen.blit(self.font.render(f"Level: {self.difficulty_level + 1}", True, BLACK), (220, 10))
+        # ── HUD outer frame ──
+        frame_x, frame_y = 0, 0
+        frame_w, frame_h = WINDOW_WIDTH, 70
+        pygame.draw.rect(self.screen, GOLD_DIM, (frame_x, frame_y, frame_w, frame_h), 0, border_radius=6)
+        pygame.draw.rect(self.screen, (30, 20, 10), (frame_x + 2, frame_y + 2, frame_w - 4, frame_h - 4), 0, border_radius=5)
+        pygame.draw.rect(self.screen, GOLD_DIM, (frame_x, frame_y, frame_w, frame_h), 2, border_radius=6)
+
+        # ── Text row with divider line ──
+        row_h = 36
+        pygame.draw.rect(self.screen, GOLD_DIM, (frame_x, frame_y, frame_w, row_h), 0, border_radius=6)
+        pygame.draw.rect(self.screen, (30, 20, 10), (frame_x + 2, frame_y + 2, frame_w - 4, row_h - 2), 0)
+        pygame.draw.line(self.screen, GOLD_DIM, (frame_x, frame_y + row_h), (frame_x + frame_w, frame_y + row_h), 2)
+
+        col_w = frame_w // 3
+        level_txt = self.small_font.render(f"Level: {self.difficulty_level + 1}", True, WHITE)
+        score_txt = self.small_font.render(f"Score: {self.score}", True, WHITE)
 
         if self.personal_best is not None:
             if self.new_record:
-                pb_label, pb_color = "NEW RECORD!", ORANGE
+                best_txt = self.small_font.render("Best: NEW!", True, ORANGE)
             else:
-                pb_label, pb_color = f"Best: {self.personal_best}", (150, 150, 150)
-            pb_surf = self.small_font.render(pb_label, True, pb_color)
-            self.screen.blit(pb_surf, (WINDOW_WIDTH - pb_surf.get_width() - 10, 10))
+                best_txt = self.small_font.render(f"Best: {self.personal_best}", True, GREY_LIGHT)
+        else:
+            best_txt = self.small_font.render("Best: --", True, GREY_LIGHT)
+
+        text_y = frame_y + (row_h - level_txt.get_height()) // 2
+        self.screen.blit(level_txt, (frame_x + 10, text_y))
+        self.screen.blit(score_txt, (frame_x + col_w + (col_w - score_txt.get_width()) // 2, text_y))
+        self.screen.blit(best_txt, (frame_x + frame_w - best_txt.get_width() - 10, text_y))
+
+        # ── Hearts bottom-right inside frame ──
+        hearts_y = frame_y + row_h + (frame_h - row_h - self.heart_img.get_height()) // 2
+        hearts_x = frame_x + frame_w - (3 * self.heart_img.get_width() + 2 * 4) - 10
+        for i in range(self.lives):
+            self.screen.blit(self.heart_img, (hearts_x + i * (self.heart_img.get_width() + 4), hearts_y))
 
         if self.difficulty_level > 0 and self.score - self.last_difficulty_score < 5:
-            lv = self.font.render(f"LEVEL {self.difficulty_level + 1}!", True, RED)
-            self.screen.blit(lv, (WINDOW_WIDTH // 2 - lv.get_width() // 2, 10))
+            lv = self.small_font.render(f"WAVE {self.difficulty_level + 1}!", True, GOLD)
+            self.screen.blit(lv, (frame_x + 10, hearts_y))
 
         if self.game_over:
             overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -481,6 +498,9 @@ class Game:
             self.btn_main_menu.update(mouse_pos)
             self.btn_play_again.draw(self.screen, self.font_btn)
             self.btn_main_menu.draw(self.screen, self.font_btn)
+
+        # ── Border around the entire game window ──
+        pygame.draw.rect(self.screen, GOLD_DIM, (0, 0, WINDOW_WIDTH, WINDOW_HEIGHT), 4)
 
         pygame.display.flip()
 
@@ -517,7 +537,7 @@ class Game:
 # ── ENTRY POINT ────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-    pygame.display.set_caption("A Fall")
+    pygame.display.set_caption("A Fall - v1.3 (Beta)") #Game Caption Part
     clock = pygame.time.Clock()
 
     while True:
