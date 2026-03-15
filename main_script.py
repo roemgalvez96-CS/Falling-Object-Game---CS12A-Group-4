@@ -3,7 +3,7 @@ import random
 import sys
 from PIL import Image
 
-# ── SETUP ──────────────────────────────────────────────────────────────────────
+# ========== SETUP ============= :D
 pygame.init()
 pygame.mixer.init()
 
@@ -59,7 +59,7 @@ OW     = pygame.mixer.Sound(ouch)
 
 BGS.play(-1)
 
-# ── GIF LOADER ────────────────────────────────────────────────────────────────
+#GIF LOADER
 PLAYER_SIZE = (50, 70)
 
 
