@@ -23,7 +23,6 @@ from falling_object import FallingObject
 from scores import get_last_score, save_score
 
 
-
 class Game:
     def __init__(self, pet_id=None):
         self.screen     = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
@@ -31,6 +30,7 @@ class Game:
         self.font       = pygame.font.Font(None, 36)
         self.large_font = pygame.font.Font(None, 72)
         self.small_font = pygame.font.Font(None, 28)
+        self.tiny_font = pygame.font.Font(None, 20)
         self.font_btn   = pygame.font.Font(None, 38)
 
         self.bg = pygame.transform.scale(
@@ -85,14 +85,10 @@ class Game:
             pygame.image.load(GOLDEN_APPLE_ICON).convert_alpha(), (28, 28)
         )
 
-        # ── Top HUD bar (hud.png) ──────────────────────────────────────────────
-        # Loads hud.png and stretches it to fill the full window width.
-        # Change WINDOW_HEIGHT to a fixed number (e.g. 52) to control bar height.
-        HUD_BAR_HEIGHT = 52  # ← adjust bar height here
+        # ── Top HUD bar ────────────────────────────────────────────────────────
+        HUD_BAR_HEIGHT = 52   # ← adjust bar height here
         raw_hud = pygame.image.load("scripts/hud.png").convert_alpha()
-        self.hud_bar_img = pygame.transform.scale(
-            raw_hud, (WINDOW_WIDTH, HUD_BAR_HEIGHT)
-        )
+        self.hud_bar_img    = pygame.transform.scale(raw_hud, (WINDOW_WIDTH, HUD_BAR_HEIGHT))
         self.hud_bar_height = HUD_BAR_HEIGHT
 
         self.reset_game()
@@ -122,7 +118,7 @@ class Game:
         self.rotten_magnet_duration = 5 * FPS
 
         COOLDOWN = 120 * FPS
-        DURATION = 5  * FPS
+        DURATION = 5   * FPS
 
         self.shield_active       = False
         self.shield_timer        = 0
@@ -140,12 +136,12 @@ class Game:
         self.golden_apple_spawn_mult = 1.0
 
         self.worm_chance_increase = 0.05
-        self.frenzy_active       = False
-        self.frenzy_timer        = 0
-        self.frenzy_ticks_total  = FRENZY_DURATION_SEC * FPS
-        self.last_frenzy_trigger = 0
-        self.frenzy_flash_timer  = 0
-        self.post_frenzy_grace   = 0
+        self.frenzy_active        = False
+        self.frenzy_timer         = 0
+        self.frenzy_ticks_total   = FRENZY_DURATION_SEC * FPS
+        self.last_frenzy_trigger  = 0
+        self.frenzy_flash_timer   = 0
+        self.post_frenzy_grace    = 0
 
     # ── frenzy helpers ─────────────────────────────────────────────────────────
     def _start_frenzy(self):
@@ -438,34 +434,24 @@ class Game:
 
     # ── HUD ────────────────────────────────────────────────────────────────────
     def _draw_hud(self):
-        ICON_SIZE = 52
+        ICON_SIZE = 40
         HUD_X     = 8
-        ICON_GAP  = 6
+        HUD_Y     = 0   # ← shift entire bar up/down
 
-        # ── Top HUD bar (hud.png) drawn at the very top of the screen ─────────
-        HUD_Y = 0  # ← move this value to shift the entire bar up/down
+        # ── HUD bar ───────────────────────────────────────────────────────────
         self.screen.blit(self.hud_bar_img, (0, HUD_Y))
         BAR_H = self.hud_bar_height
 
-        # ── Score text position ────────────────────────────────────────────────
-        # The apple icon pill sits on the LEFT side of hud.png (~52 px wide).
-        # Score is drawn to the RIGHT of that pill, vertically centred in the bar.
-        #
-        #   SCORE_X  ← horizontal position (pixels from left edge of window)
-        #              increase to move RIGHT, decrease to move LEFT
-        #   SCORE_Y  ← vertical position
-        #              HUD_Y + (BAR_H - score_txt.get_height()) // 2  = centred
-        #              Change HUD_Y offset or replace the whole expression to
-        #              nudge the text up/down within the bar.
-        #
-        SCORE_X = HUD_X + 50          # ← adjust LEFT/RIGHT here (currently just after the apple icon)
+        # ── Score text ────────────────────────────────────────────────────────
+        SCORE_X   = HUD_X + 50   # ← move score LEFT/RIGHT
         score_txt = self.small_font.render(str(self.score), True, BLACK)
-        SCORE_Y = HUD_Y + (BAR_H - score_txt.get_height()) // 2  # ← adjust UP/DOWN here
+        SCORE_Y   = HUD_Y + (BAR_H - score_txt.get_height()) // 2  # vertically centred
         self.screen.blit(score_txt, (SCORE_X, SCORE_Y))
 
-        # Power-up icons (placed just below the HUD bar)
-        icon_y1 = HUD_Y + BAR_H + ICON_GAP
-        icon_y2 = icon_y1 + ICON_SIZE + ICON_GAP
+        # ── Magnet & Shield icons — inside HUD bar, right of apple pill ───────
+        ICON_X1 = 100   # ← magnet X position (pixels from left) — move LEFT/RIGHT
+        ICON_X2 = 150   # ← shield X position (pixels from left) — move LEFT/RIGHT
+        ICON_Y  = HUD_Y + (BAR_H - ICON_SIZE) // 2   # vertically centred in bar
 
         magnet_img = pygame.transform.scale(self.magnet_icon_img, (ICON_SIZE, ICON_SIZE))
         shield_img = pygame.transform.scale(self.shield_icon_img, (ICON_SIZE, ICON_SIZE))
@@ -475,18 +461,21 @@ class Game:
         if not self.shield_active and self.shield_cooldown > 0:
             shield_img.set_alpha(100)
 
-        self._magnet_rect = pygame.Rect(HUD_X, icon_y1, ICON_SIZE, ICON_SIZE)
-        self._shield_rect = pygame.Rect(HUD_X, icon_y2, ICON_SIZE, ICON_SIZE)
+        self._magnet_rect = pygame.Rect(ICON_X1, ICON_Y, ICON_SIZE, ICON_SIZE)
+        self._shield_rect = pygame.Rect(ICON_X2, ICON_Y, ICON_SIZE, ICON_SIZE)
 
-        self.screen.blit(magnet_img, (HUD_X, icon_y1))
-        self.screen.blit(shield_img, (HUD_X, icon_y2))
+        self.screen.blit(magnet_img, (ICON_X1, ICON_Y))
+        self.screen.blit(shield_img, (ICON_X2, ICON_Y))
 
-        for active, timer, cooldown, cd_max, duration, iy in [
-            (self.magnet_active, self.magnet_timer, self.magnet_cooldown, self.magnet_cooldown_max, self.magnet_duration, icon_y1),
-            (self.shield_active, self.shield_timer, self.shield_cooldown, self.shield_cooldown_max, self.shield_duration, icon_y2),
+        # ── Cooldown rings ────────────────────────────────────────────────────
+        for active, timer, cooldown, cd_max, duration, ix in [
+            (self.magnet_active, self.magnet_timer, self.magnet_cooldown,
+             self.magnet_cooldown_max, self.magnet_duration, ICON_X1),
+            (self.shield_active, self.shield_timer, self.shield_cooldown,
+             self.shield_cooldown_max, self.shield_duration, ICON_X2),
         ]:
-            cx_ = HUD_X + ICON_SIZE // 2
-            cy_ = iy    + ICON_SIZE // 2
+            cx_ = ix     + ICON_SIZE // 2
+            cy_ = ICON_Y + ICON_SIZE // 2
             r   = ICON_SIZE // 2
             if active:
                 progress  = timer / duration
@@ -507,19 +496,19 @@ class Game:
                 t = self.small_font.render(str(secs), True, WHITE)
                 self.screen.blit(t, (cx_ - t.get_width()//2, cy_ - t.get_height()//2))
 
-        # Level
+        # ── Level text ────────────────────────────────────────────────────────
         level_txt = self.small_font.render(f"LEVEL {self.difficulty_level + 1}", True, WHITE)
         self.screen.blit(level_txt, (
             WINDOW_WIDTH // 2 - level_txt.get_width() // 2, HUD_Y + 18
         ))
         if not self.frenzy_active and self.difficulty_level > 0 \
                 and self.score - self.last_difficulty_score < 5:
-            wave_txt = self.small_font.render(f"level up!", True, GOLD)
+            wave_txt = self.tiny_font.render("LEVEL UP!", True, GOLD)  # ← changed to tiny_font (size 18)
             self.screen.blit(wave_txt, (
-                WINDOW_WIDTH // 2 - wave_txt.get_width() // 2, HUD_Y + 24
+                320 - 20, HUD_Y + 20
             ))
 
-        # Hearts
+        # ── Hearts ────────────────────────────────────────────────────────────
         HEART_SIZE = 30
         heart_img  = pygame.transform.scale(self.heart_img, (HEART_SIZE, HEART_SIZE))
         hx = WINDOW_WIDTH - 8 - (MAX_LIVES * HEART_SIZE + (MAX_LIVES - 1) * 4)
@@ -531,7 +520,6 @@ class Game:
             else:
                 dim = heart_img.copy(); dim.set_alpha(50)
                 self.screen.blit(dim, (x, hy))
-
 
     def _draw_heart_banner(self):
         alpha  = int(255 * min(self.heart_flash_timer / 30, 1.0))
