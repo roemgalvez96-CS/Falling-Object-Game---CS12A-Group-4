@@ -1,9 +1,10 @@
 # ============================================================
-# WELCOME SCREEN — image-based buttons, personal best sign
+# WELCOME SCREEN — image-based buttons, HTP overlay
 # ============================================================
 
 import pygame
 import sys
+import os
 from constants import (
     WINDOW_WIDTH, WINDOW_HEIGHT, FPS,
     WHITE, GREY_LIGHT, GOLD, GOLD_DIM,
@@ -44,6 +45,8 @@ class WelcomeScreen:
         self.font_sub   = pygame.font.Font(None, 36)
         self.font_small = pygame.font.Font(None, 28)
 
+        base = os.path.dirname(os.path.abspath(__file__))
+
         # Background
         self.bg = pygame.transform.scale(
             pygame.image.load(MENU_BG_IMG).convert(), (WINDOW_WIDTH, WINDOW_HEIGHT)
@@ -55,11 +58,9 @@ class WelcomeScreen:
         start_n = load(BTN_START_IMG);  start_h = load(BTN_START_HOVER_IMG)
         htp_n   = load(BTN_HTP_IMG);    htp_h   = load(BTN_HTP_HOVER_IMG)
 
-        # Button sizes  ← change (w, h) to resize buttons
         BTN_W, BTN_H = 190, 70
         cx = WINDOW_WIDTH // 2 - BTN_W // 2
 
-        # Button Y positions — only START and HOW TO PLAY, centered nicely
         START_Y = 420
         HTP_Y   = 510
 
@@ -68,11 +69,37 @@ class WelcomeScreen:
 
         self.last_score = get_last_score()
 
+        # ── HTP overlay assets ────────────────────────────────────────────────
+        htp_raw = pygame.image.load(
+            os.path.join(base, "scripts", "how_to_play.png")
+        ).convert_alpha()
+        self.htp_img = pygame.transform.scale(htp_raw, (WINDOW_WIDTH, WINDOW_HEIGHT))
+
+        x_raw = pygame.image.load(
+            os.path.join(base, "scripts", "x_button.png")
+        ).convert_alpha()
+        X_SIZE       = (48, 48)   # ← resize X button here
+        self.x_img   = pygame.transform.scale(x_raw, X_SIZE)
+        self.x_hover = self.x_img.copy()
+        self.x_hover.fill((255, 80, 80, 100), special_flags=pygame.BLEND_RGBA_ADD)
+
+        X_MARGIN   = 50           # ← margin from top-right edge
+        self.x_rect = self.x_img.get_rect(
+            topright=(WINDOW_WIDTH - X_MARGIN, X_MARGIN)
+        )
+
+        # Dim overlay behind HTP image
+        self.dim = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+        self.dim.fill((0, 0, 0, 160))
+
+        self.show_htp = False     # toggle for HTP overlay
+
     # ── draw ──────────────────────────────────────────────────────────────────
-    def _draw(self):
+    def _draw(self, mouse_pos):
+        # Always draw the menu background
         self.screen.blit(self.bg, (0, 0))
 
-        # Personal best display
+        # Personal best
         PB_Y = 310
         if self.last_score is not None:
             pb_value = self.font_sub.render(str(self.last_score), True, WHITE)
@@ -80,8 +107,21 @@ class WelcomeScreen:
             pb_value = self.font_small.render("--", True, GREY_LIGHT)
         self.screen.blit(pb_value, (WINDOW_WIDTH // 2 - pb_value.get_width() // 2, PB_Y))
 
-        self.btn_start.draw(self.screen)
-        self.btn_htp.draw(self.screen)
+        # Buttons (only interactive when HTP is not open)
+        if not self.show_htp:
+            self.btn_start.draw(self.screen)
+            self.btn_htp.draw(self.screen)
+
+        # ── HTP overlay on top ────────────────────────────────────────────────
+        if self.show_htp:
+            self.screen.blit(self.dim,     (0, 0))          # dim the menu
+            self.screen.blit(self.htp_img, (0, 0))          # HTP image
+
+            x_hovered = self.x_rect.collidepoint(mouse_pos)
+            self.screen.blit(
+                self.x_hover if x_hovered else self.x_img,
+                self.x_rect
+            )
 
     # ── main loop ─────────────────────────────────────────────────────────────
     def run(self):
@@ -92,17 +132,28 @@ class WelcomeScreen:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit(); sys.exit()
-                if self.btn_start.handle_event(event):
-                    BGS.stop()
-                    PlayBG.play(-1)
-                    result = 'start'
-                if self.btn_htp.handle_event(event):
-                    result = 'how_to_play'
 
-            self.btn_start.update(mouse_pos)
-            self.btn_htp.update(mouse_pos)
+                if self.show_htp:
+                    # Close HTP on X click or ESC
+                    if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                        self.show_htp = False
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        if self.x_rect.collidepoint(event.pos):
+                            self.show_htp = False
+                else:
+                    # Normal menu interactions
+                    if self.btn_start.handle_event(event):
+                        BGS.stop()
+                        PlayBG.play(-1)
+                        result = 'start'
+                    if self.btn_htp.handle_event(event):
+                        self.show_htp = True   # open overlay
 
-            self._draw()
+            if not self.show_htp:
+                self.btn_start.update(mouse_pos)
+                self.btn_htp.update(mouse_pos)
+
+            self._draw(mouse_pos)
             pygame.display.flip()
             self.clock.tick(FPS)
 
